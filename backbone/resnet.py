@@ -35,7 +35,7 @@ class BasicBlock(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
         self.bn2 = nn.BatchNorm2d(planes)
-        self.downsample = downsample
+        self.downsample = downsample #
         self.stride = stride
 
     def forward(self, x):

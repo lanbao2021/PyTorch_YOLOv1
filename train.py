@@ -86,7 +86,7 @@ def train():
         train_size = 416
         val_size = 416
 
-    cfg = train_cfg
+    cfg = train_cfg # data/config.py 里面定义了
 
     # 构建dataset类和dataloader类
     if args.dataset == 'voc':
@@ -151,7 +151,7 @@ def train():
         exit()
 
     model = yolo_net
-    model.to(device).train()
+    model.to(device).train() # 进入训练模式？
 
     # 使用 tensorboard 可视化训练过程
     if args.tfboard:
