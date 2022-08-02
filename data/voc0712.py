@@ -57,18 +57,18 @@ class VOCAnnotationTransform(object):
             a list containing lists of bounding boxes  [bbox coords, class name]
         """
         res = []
-        for obj in target.iter('object'):
-            difficult = int(obj.find('difficult').text) == 1
+        for obj in target.iter('object'): # 递归的去寻找标签为object的子节点
+            difficult = int(obj.find('difficult').text) == 1 # 忽略difficult
             if not self.keep_difficult and difficult:
                 continue
-            name = obj.find('name').text.lower().strip()
+            name = obj.find('name').text.lower().strip() # obj = list(target.iter('object'))[0].text.lower().strip()
             bbox = obj.find('bndbox')
 
             pts = ['xmin', 'ymin', 'xmax', 'ymax']
             bndbox = []
             for i, pt in enumerate(pts):
-                cur_pt = int(bbox.find(pt).text) - 1
-                # scale height or width
+                cur_pt = int(bbox.find(pt).text) - 1 # 因为VOC的标签文件里的坐标值是从1算起的，所以-1是为了从零算起
+                # scale height or width, 因为图像会进行resize，所以矩形框也要resize
                 cur_pt = cur_pt / width if i % 2 == 0 else cur_pt / height
                 bndbox.append(cur_pt)
             label_idx = self.class_to_ind[name]
@@ -96,9 +96,12 @@ class VOCDetection(data.Dataset):
             (default: 'VOC2007')
     """
 
-    def __init__(self, root, img_size=None,
-                 image_sets=[('2007', 'trainval'), ('2012', 'trainval')],
-                 transform=None, 
+    def __init__(self,
+                 root,
+                 img_size=None,
+                 image_sets=[('2007', 'trainval')],
+                 #image_sets=[('2007', 'trainval'), ('2012', 'trainval')],
+                 transform=None,
                  target_transform=VOCAnnotationTransform(),
                  dataset_name='VOC0712'
                  ):
@@ -146,10 +149,11 @@ class VOCDetection(data.Dataset):
                 target = np.array(target)
 
             img, boxes, labels = self.transform(img, target[:, :4], target[:, 4])
-            # to rgb
+            # cv.imread-> BGR -> RGB，与img[:,:,::-1]是等价的
             img = img[:, :, (2, 1, 0)]
-            # img = img.transpose(2, 0, 1)
+            # img = img.transpose(2, 0, 1) # 这个就是下面.permute(2, 0, 1)，把通道数放到前面去(W,H,C)->(C,W,H)
             target = np.hstack((boxes, np.expand_dims(labels, axis=1)))
+            # boxes: (1,4), labels:(1,) , np.expand_dims(labels, axis=1):(1,1), np.hstack后得到(1,5)
         return torch.from_numpy(img).permute(2, 0, 1), target, height, width
         # return torch.from_numpy(img), target, height, width
 
@@ -188,37 +192,61 @@ class VOCDetection(data.Dataset):
 
 
 if __name__ == "__main__":
-    def base_transform(image, size, mean):
+    def base_transform(image, size, mean, std):
+        x = cv2.resize(image, (size, size)).astype(np.float32)
+        x /= 255.
+        x -= mean
+        x /= std
+        return x
+
+    class BaseTransform:
+        def __init__(self, size, mean=(0.406, 0.456, 0.485), std=(0.225, 0.224, 0.229)):
+            self.size = size
+            self.mean = np.array(mean, dtype=np.float32)
+            self.std = np.array(std, dtype=np.float32)
+
+        def __call__(self, image, boxes=None, labels=None):
+            return base_transform(image, self.size, self.mean, self.std), boxes, labels
+
+    #############
+    def base_transform0(image, size, mean):
         x = cv2.resize(image, (size[1], size[0])).astype(np.float32)
         x -= mean
         x = x.astype(np.float32)
         return x
-
-    class BaseTransform:
+    class BaseTransform0:
         def __init__(self, size, mean):
             self.size = size
             self.mean = np.array(mean, dtype=np.float32)
 
         def __call__(self, image, boxes=None, labels=None):
             return base_transform(image, self.size, self.mean), boxes, labels
+    #############
+
 
     img_size = 640
     # dataset
     dataset = VOCDetection(VOC_ROOT, img_size, [('2007', 'trainval')],
-                            BaseTransform([img_size, img_size], (0, 0, 0)),
+                            BaseTransform(img_size),
                             VOCAnnotationTransform())
-    for i in range(1000):
+    for i in range(7):
         im, gt, h, w = dataset.pull_item(i)
+        # permute(1,2,0) 与前面的permute(2,0,1)相对应
+        # (2,1,0)把RBG变回CV的BGR
+        # astype(np.uint8)变为整数，像素值是离散的
         img = im.permute(1,2,0).numpy()[:, :, (2, 1, 0)].astype(np.uint8)
         cv2.imwrite('-1.jpg', img)
         img = cv2.imread('-1.jpg')
 
-        for box in gt:
+        for box in gt: # 在图像上面画出矩形框，可能会有多个，所以要for循环
             xmin, ymin, xmax, ymax, _ = box
+            # 读入标注数据时进行了归一化，方便进行resize，就是在这个进行resize跟img对应
+            # 用img.shape可以查看到其形状是(640, 640, 3)，
             xmin *= img_size
             ymin *= img_size
             xmax *= img_size
             ymax *= img_size
+            # 图像，左上坐标，右下坐标，BGR=(0,0,255)，2表示矩形框粗细
             img = cv2.rectangle(img, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (0,0,255), 2)
         cv2.imshow('gt', img)
         cv2.waitKey(0)
