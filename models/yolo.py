@@ -24,19 +24,20 @@ class myYOLO(nn.Module):
         # neck: SPP
         self.neck = nn.Sequential(
             SPP(),
-            Conv(c5*4, c5, k=1),
+            Conv(c5*4, c5, k=1), # 通过1*1卷积降维到512个channel
         )
 
         # detection head
         self.convsets = nn.Sequential(
-            Conv(c5, 256, k=1),
-            Conv(256, 512, k=3, p=1),
-            Conv(512, 256, k=1),
-            Conv(256, 512, k=3, p=1)
+            # SPP output size: 13*13*512
+            Conv(c5, 256, k=1), # size: 13*13, channel: 256
+            Conv(256, 512, k=3, p=1), # size: (13-3+2*1)/1 + 1 = 13, channel: 512
+            Conv(512, 256, k=1), # size: 13*13, channel: 256
+            Conv(256, 512, k=3, p=1) # size: (13-3+2*1)/1 + 1 = 13, channel: 512
         )
 
         # pred
-        self.pred = nn.Conv2d(512, 1 + self.num_classes + 4, 1)
+        self.pred = nn.Conv2d(512, 1 + self.num_classes + 4, 1) # size: 13*13*(1+C+4)
     
 
     def create_grid(self, input_size):
@@ -87,7 +88,8 @@ class myYOLO(nn.Module):
         y2 = dets[:, 3]  #ymax
 
         areas = (x2 - x1) * (y2 - y1)
-        order = scores.argsort()[::-1]
+        # argsort()从小到大排序，加了[::-1] 后就变成从大到小了
+        order = scores.argsort()[::-1] 
         
 
         keep = []                                             
@@ -119,25 +121,31 @@ class myYOLO(nn.Module):
         bboxes: (HxW, 4), bsize = 1
         scores: (HxW, num_classes), bsize = 1
         """
+        # 13*13=169个网格，每一个网格都有20个score
+        # 取出一个网格最大score对应的下标得到cls_inds
+        cls_inds = np.argmax(scores, axis=1) 
 
-        cls_inds = np.argmax(scores, axis=1)
+        # 取出这些scores，shape: (169, 20) -> (169, )
         scores = scores[(np.arange(scores.shape[0]), cls_inds)]
         
         # threshold
-        keep = np.where(scores >= self.conf_thresh)
-        bboxes = bboxes[keep]
-        scores = scores[keep]
-        cls_inds = cls_inds[keep]
+        keep = np.where(scores >= self.conf_thresh) # 得到索引
+        bboxes = bboxes[keep] # 满足条件的留下来，最多留下来169个
+        scores = scores[keep] # 满足条件的留下来，最多留下来169个
+        cls_inds = cls_inds[keep] # 满足条件的留下来，最多留下来169个
 
         # NMS
         keep = np.zeros(len(bboxes), dtype=np.int)
-        for i in range(self.num_classes):
+        for i in range(self.num_classes): # 遍历20个类别
+            # 从类别0开始，如果存在，那么就存下类别索引
+            # 不存在则inds=[]，触发if语句，迭代下一个类别
             inds = np.where(cls_inds == i)[0]
             if len(inds) == 0:
                 continue
+            # 假设inds不为空，那么就可能有多个网格满足条件，这时就要用nms去除了
             c_bboxes = bboxes[inds]
             c_scores = scores[inds]
-            c_keep = self.nms(c_bboxes, c_scores)
+            c_keep = self.nms(c_bboxes, c_scores) 
             keep[inds[c_keep]] = 1
 
         keep = np.where(keep > 0)
@@ -160,6 +168,7 @@ class myYOLO(nn.Module):
 
         # 预测层
         pred = self.pred(p5)
+        # 最后的输出是：Batch_size*13*13*(1+C+4)
 
         # 对pred 的size做一些view调整，便于后续的处理
         # [B, C, H, W] -> [B, C, H*W] -> [B, H*W, C]
@@ -190,8 +199,11 @@ class myYOLO(nn.Module):
                 # [B, H*W, 1] -> [H*W, 1]
                 conf_pred = torch.sigmoid(conf_pred)[0]
                 # [B, H*W, 4] -> [H*W, 4], 并做归一化处理
+                # 每一个网格都有组bboxes的参数
                 bboxes = torch.clamp((self.decode_boxes(txtytwth_pred) / self.input_size)[0], 0., 1.)
+                
                 # [B, H*W, 1] -> [H*W, num_class]，得分=<类别置信度>乘以<objectness置信度>
+                # 每一个网格都有20个score
                 scores = (torch.softmax(cls_pred[0, :, :], dim=1) * conf_pred)
                 
                 # 将预测放在cpu处理上，以便进行后处理

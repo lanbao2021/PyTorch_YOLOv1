@@ -24,9 +24,14 @@ class SPP(nn.Module):
         super(SPP, self).__init__()
 
     def forward(self, x):
+        # backbone ouput size: 13*13*512
+        # output size: (13-5+2*2)/1 + 1 = 13, channel=512
         x_1 = torch.nn.functional.max_pool2d(x, 5, stride=1, padding=2)
+        # output size: (13-9+2*4)/1 + 1 = 13, channel=512
         x_2 = torch.nn.functional.max_pool2d(x, 9, stride=1, padding=4)
+        # output size: (13-13+2*6)/1 + 1 = 13, channel=512
         x_3 = torch.nn.functional.max_pool2d(x, 13, stride=1, padding=6)
-        x = torch.cat([x, x_1, x_2, x_3], dim=1)
+        # output size: 13*13, channel=512+512+512+512=2048
+        x = torch.cat([x, x_1, x_2, x_3], dim=1) 
 
-        return x
+        return x # SPP后面还会用1*1卷积降维到512个channel

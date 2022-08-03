@@ -20,10 +20,17 @@ def detection_collate(batch):
     """
     targets = []
     imgs = []
+    # 这个batch是什么呢？batch=[dataset[0],dataset[1],...,dataset[batch_size-1]]
+    # dataset[0]其实就是调用了__getitem__()方法取出一个img和一个target，组成的一个tuple
+    # sample[0]对应img，sample[1]对应target或者说label，ground truth
+    # 具体看voc0712.py里的im, gt, h, w = self.pull_item(index)，注意：这里不需要用的sample[2]和[3]
     for sample in batch:
         imgs.append(sample[0])
         targets.append(torch.FloatTensor(sample[1]))
-    return torch.stack(imgs, 0), targets
+    # torch.stack(imgs, 0)就是实现(batch_size, W, H)
+    # targets这里的形状不需要再做改动了，已经处理好了，具体看voc0712.py
+    # target的具体形状[xmin, ymin, xmax, ymax, label_ind]，是的，现在还没处理成(cx,cy,w,h)
+    return torch.stack(imgs, 0), targets 
 
 
 def base_transform(image, size, mean, std):

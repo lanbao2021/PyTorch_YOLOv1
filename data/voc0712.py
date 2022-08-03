@@ -16,7 +16,7 @@ import random
 if sys.version_info[0] == 2:
     import xml.etree.cElementTree as ET
 else:
-    import xml.etree.ElementTree as ET
+    import xml.etree.ElementTree as ET # Python3会运行这个
 
 VOC_CLASSES = (  # always index 0
     'aeroplane', 'bicycle', 'bird', 'boat',
@@ -27,7 +27,9 @@ VOC_CLASSES = (  # always index 0
 
 
 # VOC数据集的目录，以下是笔者的目录。读者请根据自己的电脑来进行修改
-VOC_ROOT = "C:\\Users\\Lan\\PycharmProjects\\PyTorch_YOLOv1\\data\\VOCdevkit\\"
+# VOC_ROOT = "C:\\Users\\Lan\\PycharmProjects\\PyTorch_YOLOv1\\data\\VOCdevkit\\"
+VOC_ROOT = '/Users/lan/Downloads/VOCdevkit'
+
 
 
 class VOCAnnotationTransform(object):

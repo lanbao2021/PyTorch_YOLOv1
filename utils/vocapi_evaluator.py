@@ -28,8 +28,8 @@ class VOCAPIEvaluator():
         self.img_size = img_size
         self.device = device
         self.transform = transform
-        self.labelmap = labelmap
-        self.set_type = set_type
+        self.labelmap = labelmap # 20 就是数据集的类别数量
+        self.set_type = set_type # 用哪个.txt文件里的序号
         self.year = year
         self.display = display
 
@@ -43,28 +43,33 @@ class VOCAPIEvaluator():
         # dataset
         self.dataset = VOCDetection(root=data_root, 
                                     image_sets=[('2007', set_type)],
-                                    transform=transform
+                                    transform=transform # 输出的图片仅用basetranform
                                     )
-
+    # 前面都好理解
     def evaluate(self, net):
         net.eval()
         num_images = len(self.dataset)
         # all detections are collected into:
         #    all_boxes[cls][image] = N x 5 array of detections in
         #    (x1, y1, x2, y2, score)
-        self.all_boxes = [[[] for _ in range(num_images)]
-                        for _ in range(len(self.labelmap))]
+        # 这里的意思是构造一个20*4952的空壳子，20是类别数量，4952是这个数据集中test数据有多少张，即.txt有多少行
+        self.all_boxes = [[[] for _ in range(num_images)] for _ in range(len(self.labelmap))]
 
-        # timers
+        # timers，这个暂时不知道有什么意义，先放一下
         det_file = os.path.join(self.output_dir, 'detections.pkl')
 
-        for i in range(num_images):
-            im, gt, h, w = self.dataset.pull_item(i)
+        for i in range(num_images): # num_images=4952
+            im, gt, h, w = self.dataset.pull_item(i) # 从数据集里一张张的抽出图像数据
 
+            # unsqueeze(0)表示在第0维度插入一个维度
+            # im.shape: torch.Size([3, 416, 416])
+            # im.unsqueeze(0): torch.Size([1, 3, 416, 416])
+            # Variable可以把输出的Tensor变成一个输入变量，这样梯度就不会回传了。detach()也是可以的
             x = Variable(im.unsqueeze(0)).to(self.device)
             t0 = time.time()
             # forward
-            bboxes, scores, cls_inds = net(x)
+            bboxes, scores, cls_inds = net(x) # 注意这个时候的net(x)的trainnable=False，所以是预测功能
+            # 周四01:22看到这
             detect_time = time.time() - t0
             scale = np.array([[w, h, w, h]])
             bboxes *= scale

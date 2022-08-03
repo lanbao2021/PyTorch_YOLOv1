@@ -4,11 +4,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class MSEWithLogitsLoss(nn.Module):
+class MSEWithLogitsLoss(nn.Module): 
     def __init__(self, reduction='mean'):
         super(MSEWithLogitsLoss, self).__init__()
         self.reduction = reduction
 
+    # 继承自nn.Module所以自带forward的__call__方法，所以后面可以直接用()调用
     def forward(self, logits, targets):
         inputs = torch.clamp(torch.sigmoid(logits), min=1e-4, max=1.0 - 1e-4)
 
@@ -50,7 +51,7 @@ def generate_dxdywh(gt_label, w, h, s):
     ty = c_y_s - grid_y
     tw = np.log(box_w)
     th = np.log(box_h)
-    # 计算边界框位置参数的损失权重
+    # 计算边界框位置参数的损失权重，这个放一下，有点印象在哪里见到过理论说明
     weight = 2.0 - (box_w / w) * (box_h / h)
 
     return grid_x, grid_y, tx, ty, tw, th, weight
@@ -64,7 +65,7 @@ def gt_creator(input_size, stride, label_lists=[]):
     ws = w // stride
     hs = h // stride
     s = stride
-    gt_tensor = np.zeros([batch_size, hs, ws, 1+1+4+1])
+    gt_tensor = np.zeros([batch_size, hs, ws, 1+1+4+1]) # 嗯！跟网络的输出形状一模一样
 
     # 制作训练标签
     for batch_index in range(batch_size):
@@ -75,13 +76,13 @@ def gt_creator(input_size, stride, label_lists=[]):
                 grid_x, grid_y, tx, ty, tw, th, weight = result
 
                 if grid_x < gt_tensor.shape[2] and grid_y < gt_tensor.shape[1]:
-                    gt_tensor[batch_index, grid_y, grid_x, 0] = 1.0
+                    gt_tensor[batch_index, grid_y, grid_x, 0] = 1.0 # 有边界框的才会被置为1.0哦，后知后觉～_～
                     gt_tensor[batch_index, grid_y, grid_x, 1] = gt_class
                     gt_tensor[batch_index, grid_y, grid_x, 2:6] = np.array([tx, ty, tw, th])
                     gt_tensor[batch_index, grid_y, grid_x, 6] = weight
 
 
-    gt_tensor = gt_tensor.reshape(batch_size, -1, 1+1+4+1)
+    gt_tensor = gt_tensor.reshape(batch_size, -1, 1+1+4+1) # 注意啊，这个时候13*13的矩形就被拉成了长度为169的向量了，这是为了后面方便计算loss
 
     return torch.from_numpy(gt_tensor).float()
 
@@ -110,10 +111,10 @@ def loss(pred_conf, pred_cls, pred_txtytwth, label):
     # 置信度损失
     conf_loss = conf_loss_function(pred_conf, gt_obj)
     
-    # 类别损失
+    # 类别损失，注意，这里还乘上了置信度！对应论文那个啥，暂时可以放一下
     cls_loss = torch.sum(cls_loss_function(pred_cls, gt_cls) * gt_obj) / batch_size
     
-    # 边界框的位置损失
+    # 边界框的位置损失，这里不仅乘了置信度，还乘了矩形框大小的权重（大的权重小，小的权重大，这样小目标检测效果好一点）
     txty_loss = torch.sum(torch.sum(txty_loss_function(pred_txty, gt_txty), dim=-1) * gt_box_scale_weight * gt_obj) / batch_size
     twth_loss = torch.sum(torch.sum(twth_loss_function(pred_twth, gt_twth), dim=-1) * gt_box_scale_weight * gt_obj) / batch_size
     bbox_loss = txty_loss + twth_loss

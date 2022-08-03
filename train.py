@@ -1,5 +1,3 @@
-from __future__ import division
-
 import os
 import random
 import argparse
@@ -62,17 +60,18 @@ def parse_args():
 
 
 def train():
-    args = parse_args()
+    args = parse_args() # 接受参数
     print("Setting Arguments.. : ", args)
     print("----------------------------------------------------------")
 
+    # 输出权重文件的路径
     path_to_save = os.path.join(args.save_folder, args.dataset, args.version)
     os.makedirs(path_to_save, exist_ok=True)
     
     # 是否使用cuda
     if args.cuda:
         print('use cuda')
-        cudnn.benchmark = True
+        cudnn.benchmark = True # GPU加速的优化
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
@@ -86,6 +85,10 @@ def train():
         train_size = 416
         val_size = 416
 
+    # train_cfg 
+    # 'lr_epoch': (90, 120),
+    # 'max_epoch': 150,
+    # 'min_dim': [416, 416]
     cfg = train_cfg # data/config.py 里面定义了
 
     # 构建dataset类和dataloader类
@@ -93,14 +96,16 @@ def train():
         # 加载voc数据集
         data_dir = VOC_ROOT
         num_classes = 20
+
+        # 这里只是读入了trainval.txt得到了ids:(rootpath, img_id)
         dataset = VOCDetection(root=data_dir, 
-                                transform=SSDAugmentation(train_size)
+                                transform=SSDAugmentation(train_size) # train_size如果没有Multi-Scale操作就是416
                                 )
 
         evaluator = VOCAPIEvaluator(data_root=data_dir,
-                                    img_size=val_size,
+                                    img_size=val_size, # val_size是416（意思是图片大小416*416）
                                     device=device,
-                                    transform=BaseTransform(val_size),
+                                    transform=BaseTransform(val_size), # 预测时只需要做基本的数据增强（归一化），跟训练不一样
                                     labelmap=VOC_CLASSES
                                     )
 
@@ -131,7 +136,7 @@ def train():
     print("----------------------------------------------------------")
 
     # dataloader类
-    dataloader = torch.utils.data.DataLoader(
+    dataloader = torch.utils.data.DataLoader( # 这里发生了啥？我还没搞清楚了，我觉得这很重要
                     dataset, 
                     batch_size=args.batch_size, 
                     shuffle=True, 
@@ -151,14 +156,14 @@ def train():
         exit()
 
     model = yolo_net
-    model.to(device).train() # 进入训练模式？
+    model.to(device).train() # 进入训练模式？这个忽略一下，只记得不是很重要
 
     # 使用 tensorboard 可视化训练过程
     if args.tfboard:
         print('use tensorboard')
         from torch.utils.tensorboard import SummaryWriter
         c_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time()))
-        log_path = os.path.join('log/coco/', args.version, c_time)
+        log_path = os.path.join('tf_log/', args.version, c_time)
         os.makedirs(log_path, exist_ok=True)
 
         writer = SummaryWriter(log_path)
@@ -166,6 +171,7 @@ def train():
     # keep training
     if args.resume is not None:
         print('keep training model: %s' % (args.resume))
+        # args.resume是一个路径，模型参数文件路径，即.pth文件
         model.load_state_dict(torch.load(args.resume, map_location=device))
 
     # 构建训练优化器
