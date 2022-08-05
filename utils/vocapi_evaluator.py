@@ -71,8 +71,10 @@ class VOCAPIEvaluator():
             bboxes, scores, cls_inds = net(x) # 注意这个时候的net(x)的trainnable=False，所以是预测功能
             # 周四01:22看到这
             detect_time = time.time() - t0
-            scale = np.array([[w, h, w, h]])
-            bboxes *= scale
+            scale = np.array([[w, h, w, h]]) # shape:(1,4)
+            # bboxes:(13, 4) * scale:(1,4) = (13, 4)
+            # 这里的13是指处理后还剩下13个框
+            bboxes *= scale 
 
             for j in range(len(self.labelmap)):
                 inds = np.where(cls_inds == j)[0]
