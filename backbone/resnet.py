@@ -114,6 +114,7 @@ class ResNet(nn.Module):
         # block有两种，basic和bottle，ResNet-18用的是Basic
         # 64为当前layer的输出通道数
         # layers[0]是一个数值，表示要几个block
+        # model = ResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
@@ -138,6 +139,9 @@ class ResNet(nn.Module):
                 elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
     # 这里就是搭积木，暂时略过可以
+    # self.layer1 = self._make_layer(block, 64, layers[0])
+    # _make_layer(block, 128, layers[1], stride=2)
+    # _make_layer(block, 256, layers[2], stride=2)
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
