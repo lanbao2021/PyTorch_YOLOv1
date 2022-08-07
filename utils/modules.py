@@ -34,4 +34,6 @@ class SPP(nn.Module):
         # output size: 13*13, channel=512+512+512+512=2048
         x = torch.cat([x, x_1, x_2, x_3], dim=1) 
 
+        
+
         return x # SPP后面还会用1*1卷积降维到512个channel
