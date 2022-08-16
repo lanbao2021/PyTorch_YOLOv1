@@ -155,7 +155,7 @@ class VOCAPIEvaluator():
                     # the VOCdevkit expects 1-based indices
                     for k in range(dets.shape[0]):
                         f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
-                                format(index[1], dets[k, -1],
+                                format(index[1], dets[k, -1], # 000001 score xmin+1 ymin+1 xmax+1 ymax+1
                                     dets[k, 0] + 1, dets[k, 1] + 1,
                                     dets[k, 2] + 1, dets[k, 3] + 1))
 
@@ -170,13 +170,14 @@ class VOCAPIEvaluator():
             os.mkdir(self.output_dir)
         for i, cls in enumerate(self.labelmap):
             filename = self.get_voc_results_file_template(cls)
+            # recall, precision, AP
             rec, prec, ap = self.voc_eval(detpath=filename, 
                                           classname=cls, 
                                           cachedir=cachedir, 
                                           ovthresh=0.5, 
                                           use_07_metric=use_07_metric
                                         )
-            aps += [ap]
+            aps += [ap] # AP1 + AP2 + ... = APs
             print('AP for {} = {:.4f}'.format(cls, ap))
             with open(os.path.join(self.output_dir, cls + '_pr.pkl'), 'wb') as f:
                 pickle.dump({'rec': rec, 'prec': prec, 'ap': ap}, f)
@@ -244,7 +245,7 @@ class VOCAPIEvaluator():
         if not os.path.isfile(cachefile):
             # load annots
             recs = {}
-            for i, imagename in enumerate(imagenames):
+            for i, imagename in enumerate(imagenames): # 4952张图片的标注信息存到一个dict，然后又用pickle存到一个文件里，当作cache
                 recs[imagename] = self.parse_rec(self.annopath % (imagename))
                 if i % 100 == 0 and self.display:
                     print('Reading annotation for {:d}/{:d}'.format(
@@ -263,11 +264,12 @@ class VOCAPIEvaluator():
         class_recs = {}
         npos = 0
         for imagename in imagenames:
+            # recs是一个字典，recs['000001']的结果也是字典，可能有多个obj，这些obj也是字典，通过obj['name']判断是否为aeroplane等，是的话取出来
             R = [obj for obj in recs[imagename] if obj['name'] == classname]
             bbox = np.array([x['bbox'] for x in R])
             difficult = np.array([x['difficult'] for x in R]).astype(np.bool)
-            det = [False] * len(R)
-            npos = npos + sum(~difficult)
+            det = [False] * len(R)  # [False] * 2 -> [False, False]
+            npos = npos + sum(~difficult) # 基本都为0/False，自增，~difficult取反,统计样本个数
             class_recs[imagename] = {'bbox': bbox,
                                     'difficult': difficult,
                                     'det': det}
@@ -284,7 +286,7 @@ class VOCAPIEvaluator():
             BB = np.array([[float(z) for z in x[2:]] for x in splitlines])
 
             # sort by confidence
-            sorted_ind = np.argsort(-confidence)
+            sorted_ind = np.argsort(-confidence) # no - : small -> big; has - : big -> small
             sorted_scores = np.sort(-confidence)
             BB = BB[sorted_ind, :]
             image_ids = [image_ids[x] for x in sorted_ind]

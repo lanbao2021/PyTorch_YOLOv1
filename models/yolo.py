@@ -88,7 +88,7 @@ class myYOLO(nn.Module):
         y2 = dets[:, 3]  #ymax
 
         areas = (x2 - x1) * (y2 - y1)
-        # argsort()从小到大排序，加了[::-1] 后就变成从大到小了
+        # argsort()从小到大排序返回索引值，加了[::-1] 后就变成从大到小了
         order = scores.argsort()[::-1] 
         
 
